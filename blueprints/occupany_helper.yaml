@@ -1,0 +1,152 @@
+blueprint:
+  name: Motion & Trigger Based Occupancy (Cooldown After Sensors Off)
+  description: >
+    Turns on occupancy when primary motion or valid triggers fire.
+    Low-confidence motion sensors only extend occupancy while active.
+    Occupancy turns off only after all primary sensors are off AND cooldown time has passed.
+  domain: automation
+
+  input:
+    target_boolean:
+      name: Occupancy Helper
+      selector:
+        entity:
+          domain: input_boolean
+
+    primary_motion_sensors:
+      name: Primary Motion Sensors
+      selector:
+        entity:
+          domain: binary_sensor
+          multiple: true
+
+    secondary_motion_sensors:
+      name: Secondary Motion Sensors (Optional)
+      default: []
+      selector:
+        entity:
+          domain: binary_sensor
+          multiple: true
+
+    trigger_sensors:
+      name: Generic Trigger Sensors (Optional)
+      default: []
+      selector:
+        entity:
+          multiple: true
+
+    cooldown:
+      name: Cooldown Time (seconds)
+      default: 300
+      selector:
+        number:
+          min: 10
+          max: 3600
+          unit_of_measurement: seconds
+          mode: slider
+
+    enable_logging:
+      name: Enable Logging
+      default: false
+      selector:
+        boolean:
+
+trigger:
+  - platform: state
+    entity_id: !input primary_motion_sensors
+
+  - platform: state
+    entity_id: !input secondary_motion_sensors
+
+  - platform: state
+    entity_id: !input trigger_sensors
+
+variables:
+  primary_motion_sensors: !input primary_motion_sensors
+  secondary_motion_sensors: !input secondary_motion_sensors
+  trigger_sensors: !input trigger_sensors
+  target_boolean: !input target_boolean
+  logging: !input enable_logging
+  cooldown: !input cooldown
+
+condition:
+  - condition: or
+    conditions:
+      # Primary motion: off → on
+      - condition: template
+        value_template: >
+          {{ trigger.entity_id in primary_motion_sensors
+             and trigger.from_state is not none
+             and trigger.to_state is not none
+             and trigger.from_state.state == 'off'
+             and trigger.to_state.state == 'on' }}
+
+      # Secondary motion: off → on and already occupied
+      - condition: template
+        value_template: >
+          {{ trigger.entity_id in secondary_motion_sensors
+             and is_state(target_boolean, 'on')
+             and trigger.from_state is not none
+             and trigger.to_state is not none
+             and trigger.from_state.state == 'off'
+             and trigger.to_state.state == 'on' }}
+
+      # Generic triggers: any valid state change
+      - condition: template
+        value_template: >
+          {% set invalid = ['unknown', 'unavailable', 'none'] %}
+          {{ trigger.entity_id in trigger_sensors
+             and trigger.from_state is not none
+             and trigger.to_state is not none
+             and trigger.from_state.state not in invalid
+             and trigger.to_state.state not in invalid
+             and trigger.from_state.state != trigger.to_state.state }}
+
+action:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ logging }}"
+        sequence:
+          - service: system_log.write
+            data:
+              message: >
+                "[Occupancy] Triggered by {{ trigger.entity_id }} — from: {{ trigger.from_state.state if trigger.from_state else 'none' }} → {{ trigger.to_state.state if trigger.to_state else 'none' }}"
+              level: info
+
+  - service: input_boolean.turn_on
+    target:
+      entity_id: !input target_boolean
+
+  - wait_template: >
+      {{ primary_motion_sensors | select('is_state', 'off') | list | count == primary_motion_sensors | count }}
+    continue_on_timeout: false
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ logging }}"
+        sequence:
+          - service: system_log.write
+            data:
+              message: "[Occupancy] All primary sensors are off. Starting cooldown: {{ cooldown }}s"
+              level: info
+
+  - delay:
+      seconds: !input cooldown
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ logging }}"
+        sequence:
+          - service: system_log.write
+            data:
+              message: "[Occupancy] Cooldown passed. Turning off occupancy."
+              level: info
+
+  - service: input_boolean.turn_off
+    target:
+      entity_id: !input target_boolean
+
+mode: restart
