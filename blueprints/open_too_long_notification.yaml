@@ -1,0 +1,102 @@
+blueprint:
+  name: Generic Binary Sensor Repeat Notification (Pushover, Adaptive Messaging)
+  description: >
+    Watch any binary_sensor (plus optional extra triggers): when it turns “on”
+    and stays on past the Initial Delay—or any additional trigger fires—send a
+    Pushover alert and repeat every Repeat Interval until it turns “off.” Once off,
+    send a final notification with the actual open duration. Message wording adapts
+    to the sensor’s device_class.
+  domain: automation
+
+  input:
+    open_sensor:
+      name: Binary Sensor
+      description: The binary_sensor to monitor (on = alert condition)
+      selector:
+        entity:
+          domain: binary_sensor
+
+    delay:
+      name: Initial Delay
+      description: How long “on” before first notification
+      default:
+        minutes: 30
+      selector:
+        duration: {}
+
+    repeat_interval:
+      name: Repeat Interval
+      description: Minutes between repeat notifications
+      default:
+        minutes: 1
+      selector:
+        duration: {}
+
+    additional_triggers:
+      name: Extra Triggers (optional)
+      description: Supply any number of extra triggers here.
+      default: []
+      selector:
+        trigger: {}
+
+    additional_conditions:
+      name: Additional Conditions (optional)
+      description: Supply extra conditions to gate alerts.
+      default: []
+      selector:
+        condition: {}
+
+trigger:
+  - id: open_delay
+    platform: state
+    entity_id: !input open_sensor
+    to: "on"
+    for: !input delay
+
+  - id: boot_trigger
+    platform: homeassistant
+    event: start
+
+  - triggers: !input additional_triggers
+
+condition:
+  - condition: state
+    entity_id: !input open_sensor
+    state: "on"
+    for: !input delay 
+
+  - condition: !input additional_conditions
+
+action:
+  - repeat:
+      until:
+        - condition: state
+          entity_id: !input open_sensor
+          state: "off"
+      sequence:
+        - service: notify.pushover
+          data:
+            title: >
+             {% set entity_id = trigger.entity_id %}
+             {{ state_attr(entity_id, 'friendly_name') }} {{ state_translated(entity_id) }} 
+            message: >
+             {% set entity_id = trigger.entity_id %}
+             {{ state_attr(entity_id, 'friendly_name') }} {{ state_translated(entity_id) }} for {{ time_since(states[entity_id].last_changed) }}
+        - wait_for_trigger:
+            - platform: state
+              entity_id: !input open_sensor
+              to: "off"
+          timeout: !input repeat_interval
+          continue_on_timeout: true
+
+  - service: notify.pushover
+    data:
+      title: >
+        {% set entity_id = trigger.entity_id %}
+        {{ state_attr(entity_id, 'friendly_name') }} {{ state_translated(entity_id) }} 
+
+      message: >
+       {% set entity_id = trigger.entity_id %}
+       {{ state_attr(entity_id, 'friendly_name') }} {{ state_translated(entity_id) }} for {{ time_since(states[entity_id].last_changed) }}
+
+mode: restart
