@@ -1,0 +1,73 @@
+blueprint:
+  name: Occupancy-Based On/Off Control with Optional Off-Delay
+  description: >
+    Turns on selected entities when an occupancy helper goes on,
+    and turns them off when it goes off, optionally after a delay.
+    Works with any entity supporting turn_on/turn_off services.
+  domain: automation
+
+  input:
+    occupancy_boolean:
+      name: Occupancy Helper
+      selector:
+        entity:
+          domain: input_boolean
+
+    entities_to_control:
+      name: Entities to Control
+      description: Any on/off entity (light, switch, input_boolean, etc.)
+      selector:
+        entity:
+          multiple: true
+
+    off_delay:
+      name: Delay After Occupancy Off
+      description: How long to wait before turning off entities
+      default:
+        seconds: 0
+      selector:
+        duration: {}
+
+trigger:
+  - id: occupied
+    platform: state
+    entity_id: !input occupancy_boolean
+    to: "on"
+
+  - id: vacant
+    platform: state
+    entity_id: !input occupancy_boolean
+    to: "off"
+
+variables:
+  occ_flag: !input occupancy_boolean
+  targets: !input entities_to_control
+  delay_after_off: !input off_delay
+
+action:
+  - choose:
+      # Occupancy turned on → turn on targets
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.to_state.state == 'on' }}"
+        sequence:
+          - service: homeassistant.turn_on
+            target:
+              entity_id: "{{ targets }}"
+
+      # Occupancy turned off → optionally wait, then turn off targets
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.to_state.state == 'off' }}"
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ delay_after_off.total_seconds() > 0 }}"
+                sequence:
+                  - delay: !input off_delay
+          - service: homeassistant.turn_off
+            target:
+              entity_id: "{{ targets }}"
+
+mode: restart
