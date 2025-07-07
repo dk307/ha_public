@@ -49,7 +49,7 @@ blueprint:
       name: Enable Logging
       default: false
       selector:
-        boolean
+        boolean:
 
 trigger:
   - platform: state
