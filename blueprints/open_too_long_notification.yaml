@@ -59,55 +59,44 @@ trigger:
 
   - triggers: !input additional_triggers
 
-variables:
-  sensor: !input open_sensor
-  initial_delay: !input delay
-  repeat_every: !input repeat_interval
-  extra_conditions: !input additional_conditions
-
 condition:
   - condition: state
-    entity_id: "{{ sensor }}"
+    entity_id: !input open_sensor
     state: "on"
-    for: "{{ initial_delay }}"
+    for: !input delay 
 
-  - condition: "{{ extra_conditions }}"
+  - condition: !input additional_conditions
 
 action:
   - repeat:
       until:
         - condition: state
-          entity_id: "{{ sensor }}"
+          entity_id: !input open_sensor
           state: "off"
       sequence:
         - service: notify.pushover
           data:
             title: >
-              {% set entity_id = sensor %}
-              {{ state_attr(entity_id, 'friendly_name') }}
-              {{ state_translated(entity_id) }}
+             {% set entity_id = trigger.entity_id %}
+             {{ state_attr(entity_id, 'friendly_name') }} {{ state_translated(entity_id) }} 
             message: >
-              {% set entity_id = sensor %}
-              {{ state_attr(entity_id, 'friendly_name') }}
-              {{ state_translated(entity_id) }}
-              for {{ time_since(states[entity_id].last_changed) }}
+             {% set entity_id = trigger.entity_id %}
+             {{ state_attr(entity_id, 'friendly_name') }} {{ state_translated(entity_id) }} for {{ time_since(states[entity_id].last_changed) }}
         - wait_for_trigger:
             - platform: state
-              entity_id: "{{ sensor }}"
+              entity_id: !input open_sensor
               to: "off"
-          timeout: "{{ repeat_every }}"
+          timeout: !input repeat_interval
           continue_on_timeout: true
 
   - service: notify.pushover
     data:
       title: >
-        {% set entity_id = sensor.entity_id %}
-        {{ state_attr(entity_id, 'friendly_name') }}
-        {{ state_translated(entity_id) }}
+        {% set entity_id = trigger.entity_id %}
+        {{ state_attr(entity_id, 'friendly_name') }} {{ state_translated(entity_id) }} 
+
       message: >
-        {% set entity_id = sensor %}
-        {{ state_attr(entity_id, 'friendly_name') }}
-        {{ state_translated(entity_id) }}
-        for {{ time_since(states[entity_id].last_changed) }}
+       {% set entity_id = trigger.entity_id %}
+       {{ state_attr(entity_id, 'friendly_name') }} {{ state_translated(entity_id) }} for {{ time_since(states[entity_id].last_changed) }}
 
 mode: restart
