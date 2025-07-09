@@ -1,8 +1,7 @@
 blueprint:
-  name: Set Controllable Entity States (Boolean)
+  name: Set Controllable Entity States
   description: >
-    Turns multiple entities on or off based on a boolean input.
-    Uses a single template evaluation to choose the correct service.
+    Turns multiple entities on or off based on a boolean inputs
   domain: script
   input:
     target_entities:
