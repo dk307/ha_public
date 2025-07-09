@@ -1,9 +1,9 @@
 blueprint:
-  name: Occupancy-Based On/Off Control with Optional Off-Delay & Darkness Helper
+  name: Occupancy-Based On/Off Control with Optional Off-Delay & Darkness Sensor
   description: >
     Turns on selected entities when an occupancy helper goes on,
     and turns them off when it goes off, optionally after a delay.
-    If a darkness helper is provided, entities turn on only when it's dark.
+    If a binary_sensor is provided as a darkness condition, entities will turn on only when it's dark.
     Works with any entity supporting turn_on/turn_off services.
   domain: automation
 
@@ -29,13 +29,13 @@ blueprint:
       selector:
         duration: {}
 
-    dark_helper:
-      name: Darkness Condition Helper (Optional)
-      description: Only activate entities if this boolean is on (i.e. it's dark)
+    dark_sensor:
+      name: Darkness Condition Sensor (Optional)
+      description: Only activate entities if this binary_sensor is "on" (i.e. dark detected)
       default: null
       selector:
         entity:
-          domain: input_boolean
+          domain: binary_sensor
 
 trigger:
   - id: occupied
@@ -52,35 +52,35 @@ variables:
   occ_flag: !input occupancy_boolean
   targets: !input entities_to_control
   delay_after_off: !input off_delay
-  dark_check: !input dark_helper
+  darkness_sensor: !input dark_sensor
 
 action:
   - choose:
-      # Turn entities ON when occupancy goes ON, optionally checking dark helper
+      # Turn entities ON when occupancy turns ON, optionally gated by darkness sensor
       - conditions:
           - condition: template
             value_template: "{{ trigger.to_state.state == 'on' }}"
         sequence:
           - choose:
-              # If dark_check is provided, only continue if it's 'on'
+              # If dark sensor is provided, only continue if it's "on"
               - conditions:
                   - condition: template
                     value_template: >-
-                      {{ dark_check is not none and is_state(dark_check, 'on') }}
+                      {{ darkness_sensor is not none and is_state(darkness_sensor, 'on') }}
                 sequence:
                   - service: homeassistant.turn_on
                     target:
                       entity_id: "{{ targets }}"
-              # If no dark_check provided, proceed without check
+              # If dark sensor not provided, skip check
               - conditions:
                   - condition: template
-                    value_template: "{{ dark_check is none }}"
+                    value_template: "{{ darkness_sensor is none }}"
                 sequence:
                   - service: homeassistant.turn_on
                     target:
                       entity_id: "{{ targets }}"
 
-      # Turn entities OFF when occupancy goes OFF, after optional delay
+      # Turn entities OFF when occupancy turns OFF, optionally delayed
       - conditions:
           - condition: template
             value_template: "{{ trigger.to_state.state == 'off' }}"
