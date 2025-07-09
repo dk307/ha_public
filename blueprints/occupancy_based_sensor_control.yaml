@@ -1,8 +1,9 @@
 blueprint:
-  name: Occupancy-Based On/Off Control with Optional Off-Delay
+  name: Occupancy-Based On/Off Control with Optional Off-Delay & Darkness Helper
   description: >
     Turns on selected entities when an occupancy helper goes on,
     and turns them off when it goes off, optionally after a delay.
+    If a darkness helper is provided, entities turn on only when it's dark.
     Works with any entity supporting turn_on/turn_off services.
   domain: automation
 
@@ -28,6 +29,14 @@ blueprint:
       selector:
         duration: {}
 
+    dark_helper:
+      name: Darkness Condition Helper (Optional)
+      description: Only activate entities if this boolean is on (i.e. it's dark)
+      default: null
+      selector:
+        entity:
+          domain: input_boolean
+
 trigger:
   - id: occupied
     platform: state
@@ -43,19 +52,35 @@ variables:
   occ_flag: !input occupancy_boolean
   targets: !input entities_to_control
   delay_after_off: !input off_delay
+  dark_check: !input dark_helper
 
 action:
   - choose:
-      # Occupancy turned on → turn on targets
+      # Turn entities ON when occupancy goes ON, optionally checking dark helper
       - conditions:
           - condition: template
             value_template: "{{ trigger.to_state.state == 'on' }}"
         sequence:
-          - service: homeassistant.turn_on
-            target:
-              entity_id: "{{ targets }}"
+          - choose:
+              # If dark_check is provided, only continue if it's 'on'
+              - conditions:
+                  - condition: template
+                    value_template: >-
+                      {{ dark_check is not none and is_state(dark_check, 'on') }}
+                sequence:
+                  - service: homeassistant.turn_on
+                    target:
+                      entity_id: "{{ targets }}"
+              # If no dark_check provided, proceed without check
+              - conditions:
+                  - condition: template
+                    value_template: "{{ dark_check is none }}"
+                sequence:
+                  - service: homeassistant.turn_on
+                    target:
+                      entity_id: "{{ targets }}"
 
-      # Occupancy turned off → optionally wait, then turn off targets
+      # Turn entities OFF when occupancy goes OFF, after optional delay
       - conditions:
           - condition: template
             value_template: "{{ trigger.to_state.state == 'off' }}"
