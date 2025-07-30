@@ -1,0 +1,57 @@
+blueprint:
+  name: Hikvision Camera Manual Recording via Occupancy
+  description: >
+    Starts or stops manual recording on a Hikvision camera based on an occupancy input_boolean.
+  domain: automation
+  input:
+    occupancy_boolean:
+      name: Occupancy Boolean
+      description: This input_boolean controls when to start or stop recording.
+      selector:
+        entity:
+          domain: input_boolean
+    camera_hostname:
+      name: Camera Hostname
+      description: Hostname or IP of the Hikvision camera
+      selector:
+        text:
+
+trigger:
+  - platform: state
+    entity_id: !input occupancy_boolean
+
+variables:
+  hostname: !input camera_hostname
+  action: >-
+    {{ 'start' if is_state(trigger.to_state.entity_id, 'on') else 'stop' }}
+
+action:
+  - service: rest_command.hikvision_camera_rest_recording_control
+    data:
+      hostname: "{{ hostname }}"
+      action: "{{ action }}"
+    response_variable: action_response
+
+  - choose:
+      - conditions:
+          - condition: template
+            alias: If return code is success
+            value_template: "{{ action_response.status == 200 }}"
+        sequence:
+          - service: logbook.log
+            data:
+              name: Hikvision
+              message: "Recording {{ action }} succeeded on {{ hostname }}"
+
+      - conditions:
+          - condition: template
+            alias: If return code is failure
+            value_template: "{{ action_response.status != 200 }}"
+        sequence:
+          - service: logbook.log
+            data:
+              name: Hikvision
+              message: "Recording {{ action }} failed on {{ hostname }} (HTTP {{ action_response.status }})"
+
+mode: queued
+max: 10
