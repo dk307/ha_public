@@ -51,7 +51,6 @@ trigger:
 variables:
   occ_flag: !input occupancy_boolean
   targets: !input entities_to_control
-  delay_after_off: !input off_delay
   darkness_sensor: !input dark_sensor
 
 action:
@@ -85,7 +84,7 @@ action:
           - condition: template
             value_template: "{{ trigger.to_state.state == 'off' }}"
         sequence:
-          - delay: delay_after_off
+          - delay: !input off_delay
           - service: homeassistant.turn_off
             target:
               entity_id: "{{ targets }}"
