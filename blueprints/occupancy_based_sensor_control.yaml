@@ -85,14 +85,8 @@ action:
           - condition: template
             value_template: "{{ trigger.to_state.state == 'off' }}"
         sequence:
-          - choose:
-              - conditions:
-                  - condition: template
-                    value_template: "{{ delay_after_off.total_seconds() > 0 }}"
-                sequence:
-                  - delay: !input off_delay
+          - delay: delay_after_off
           - service: homeassistant.turn_off
             target:
               entity_id: "{{ targets }}"
-
 mode: restart
