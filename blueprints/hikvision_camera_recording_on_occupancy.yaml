@@ -1,57 +1,88 @@
 blueprint:
   name: Hikvision Camera Manual Recording via Occupancy
   description: >
-    Starts or stops manual recording on a Hikvision camera based on an occupancy input_boolean.
+    Start or stop manual recording on a Hikvision camera
+    whenever a specified occupancy input_boolean changes state.
   domain: automation
   input:
     occupancy_boolean:
       name: Occupancy Boolean
-      description: This input_boolean controls when to start or stop recording.
+      description: Input_boolean entity that controls when the camera
+        should start or stop manual recording.
       selector:
         entity:
           domain: input_boolean
+
     camera_hostname:
       name: Camera Hostname
-      description: Hostname or IP of the Hikvision camera
+      description: Hostname or IP address of the Hikvision camera to control.
       selector:
         text:
 
+    camera_username:
+      name: Camera Username
+      description: Username with sufficient permissions to trigger manual recording.
+      selector:
+        text:
+
+    camera_password:
+      name: Camera Password
+      description: Password for the Hikvision camera user account.
+      selector:
+        text:
+          type: password
+
 trigger:
   - platform: state
+    alias: Trigger on Occupancy Boolean change
     entity_id: !input occupancy_boolean
 
 variables:
   hostname: !input camera_hostname
+  username: !input camera_username
+  password: !input camera_password
   action: >-
     {{ 'start' if is_state(trigger.to_state.entity_id, 'on') else 'stop' }}
 
 action:
-  - service: rest_command.hikvision_camera_rest_recording_control
+  - alias: Validate hostname is provided
+    condition: template
+    value_template: "{{ hostname | trim | length > 0 }}"
+
+  - alias: Call Pyscript to set manual recording
+    service: pyscript.hikvision_manual_recording
     data:
-      hostname: "{{ hostname }}"
+      host_name: "{{ hostname }}"
+      user_name: "{{ username }}"
+      password: "{{ password }}"
       action: "{{ action }}"
     response_variable: action_response
 
-  - choose:
+  - alias: Process Pyscript response
+    choose:
       - conditions:
-          - condition: template
-            alias: If return code is success
-            value_template: "{{ action_response.status == 200 }}"
+          - alias: If response is successful
+            condition: template
+            value_template: "{{ action_response.success | default(false) }}"
         sequence:
-          - service: logbook.log
+          - alias: Log successful recording change
+            service: logbook.log
             data:
               name: Hikvision
               message: "Recording {{ action }} succeeded on {{ hostname }}"
 
       - conditions:
-          - condition: template
-            alias: If return code is failure
-            value_template: "{{ action_response.status != 200 }}"
+          - alias: If response indicates failure
+            condition: template
+            value_template: "{{ not action_response.success | default(false) }}"
         sequence:
-          - service: logbook.log
+          - alias: Notify of recording failure
+            service: persistent_notification.create
             data:
-              name: Hikvision
-              message: "Recording {{ action }} failed on {{ hostname }} (HTTP {{ action_response.status }})"
+              title: "Hikvision Recording Error"
+              message: >-
+                Recording {{ action }} failed on {{ hostname }}:
+                {{ action_response.error | default('Unknown error') }}
 
 mode: queued
 max: 10
