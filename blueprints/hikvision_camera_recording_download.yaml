@@ -11,7 +11,7 @@ blueprint:
     run_times:
       name: Run Times (Daily)
       description: >
-        List of times (HH:MM, 24‑hour format) each day to run the download task.
+        Time each day to run the download task.
         At each time, this automation calls the Pyscript to fetch all
         available recordings from the camera.
       selector:
@@ -34,8 +34,7 @@ blueprint:
       description: Password for the above user account.
       selector:
         text:
-          type: password
-
+          
     download_path:
       name: Download Path
       description: >
@@ -52,21 +51,15 @@ trigger:
 variables:
   hostname: !input camera_hostname
   username: !input camera_username
-  password: !input camera_password
   out_path: !input download_path
 
 action:
-  - alias: Validate required inputs
-    condition: template
-    value_template: >
-      {{ hostname | trim | length > 0 and out_path | trim | length > 0 }}
-
   - alias: Invoke Pyscript to download recordings
     service: pyscript.download_hikvision_camera_videos
     data:
       host_name: "{{ hostname }}"
       user_name: "{{ username }}"
-      password: "{{ password }}"
+      password: !input password
       path_for_download: "{{ out_path }}"
     response_variable: dl_response
 
