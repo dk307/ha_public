@@ -34,7 +34,8 @@ blueprint:
       description: Password for the above user account.
       selector:
         text:
-          
+          type: password
+
     download_path:
       name: Download Path
       description: >
@@ -51,6 +52,7 @@ trigger:
 variables:
   hostname: !input camera_hostname
   username: !input camera_username
+  password: !input camera_password
   out_path: !input download_path
 
 action:
@@ -59,7 +61,7 @@ action:
     data:
       host_name: "{{ hostname }}"
       user_name: "{{ username }}"
-      password: !input camera_password
+      password: "{{ password }}"
       path_for_download: "{{ out_path }}"
     response_variable: dl_response
 
