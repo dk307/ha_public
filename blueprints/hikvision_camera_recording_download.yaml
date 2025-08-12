@@ -16,7 +16,6 @@ blueprint:
         available recordings from the camera.
       selector:
         time:
-          multiple: true
 
     camera_hostname:
       name: Camera Hostname/IP
