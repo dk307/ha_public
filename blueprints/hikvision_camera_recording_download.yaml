@@ -1,0 +1,103 @@
+blueprint:
+  name: Hikvision Camera Download Recordings (Scheduled)
+  description: >
+    Downloads recordings from a Hikvision camera several times per day on a
+    defined schedule. Saves oldest-first into per‑day folders (YYYY‑MM‑DD).
+    Skips existing files and best‑effort sets file timestamps cross‑platform.
+
+  domain: automation
+
+  input:
+    run_times:
+      name: Run Times (Daily)
+      description: >
+        List of times (HH:MM, 24‑hour format) each day to run the download task.
+        At each time, this automation calls the Pyscript to fetch all
+        available recordings from the camera.
+      selector:
+        time:
+          multiple: true
+
+    camera_hostname:
+      name: Camera Hostname/IP
+      description: Hostname or IP address of the Hikvision camera to download from.
+      selector:
+        text:
+
+    camera_username:
+      name: Camera Username
+      description: Username with permission to search and download recordings.
+      selector:
+        text:
+
+    camera_password:
+      name: Camera Password
+      description: Password for the above user account.
+      selector:
+        text:
+          type: password
+
+    download_path:
+      name: Download Path
+      description: >
+        Absolute path where downloaded videos should be saved. Files are placed
+        in subfolders named by date (YYYY‑MM‑DD). Existing files are skipped.
+      selector:
+        text:
+
+trigger:
+  - alias: Trigger at each selected run time
+    platform: time
+    at: !input run_times
+
+variables:
+  hostname: !input camera_hostname
+  username: !input camera_username
+  password: !input camera_password
+  out_path: !input download_path
+
+action:
+  - alias: Validate required inputs
+    condition: template
+    value_template: >
+      {{ hostname | trim | length > 0 and out_path | trim | length > 0 }}
+
+  - alias: Invoke Pyscript to download recordings
+    service: pyscript.download_hikvision_camera_videos
+    data:
+      host_name: "{{ hostname }}"
+      user_name: "{{ username }}"
+      password: "{{ password }}"
+      path_for_download: "{{ out_path }}"
+    response_variable: dl_response
+
+  - alias: Handle Pyscript response
+    choose:
+      - conditions:
+          - alias: Response indicates success
+            condition: template
+            value_template: "{{ dl_response.success | default(false) }}"
+        sequence:
+          - alias: Log success summary to Logbook
+            service: logbook.log
+            data:
+              name: Hikvision
+              message: >-
+                Download completed for {{ hostname }} →
+                saved {{ dl_response.saved | default(0) }} file(s),
+                errored {{ dl_response.errored | default(0) }},
+                into {{ out_path }}
+      - conditions:
+          - alias: Response indicates failure
+            condition: template
+            value_template: "{{ not dl_response.success | default(false) }}"
+        sequence:
+          - alias: Notify about download failure
+            service: persistent_notification.create
+            data:
+              title: "Hikvision Download Error"
+              message: >-
+                Failed to download from {{ hostname }} into {{ out_path }}:
+                {{ dl_response.error | default('Unknown error') }}
+
+mode: single
