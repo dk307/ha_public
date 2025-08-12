@@ -59,7 +59,7 @@ action:
     data:
       host_name: "{{ hostname }}"
       user_name: "{{ username }}"
-      password: !input password
+      password: !input camera_password
       path_for_download: "{{ out_path }}"
     response_variable: dl_response
 
