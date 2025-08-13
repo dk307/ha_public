@@ -31,7 +31,7 @@ blueprint:
 
     camera_password:
       name: Camera Password
-      description: Password for the above user account.
+      description: Password for the Hikvision camera user account.
       selector:
         text:
           type: password
