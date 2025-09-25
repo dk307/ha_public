@@ -1,5 +1,5 @@
 blueprint:
-  name: Generic Binary Sensor Repeat Notification (Pushover, Adaptive Messaging)
+  name: Generic Binary Sensor Repeat Notification
   description: >
     Watch any binary_sensor (plus optional extra triggers): when it turns “on”
     and stays on past the Initial Delay—or any additional trigger fires—send a
@@ -45,6 +45,9 @@ blueprint:
       default: []
       selector:
         condition: {}
+            
+variables:
+    open_sensor: !input open_sensor         
 
 trigger:
   - id: open_delay
@@ -77,10 +80,10 @@ action:
         - service: notify.pushover
           data:
             title: >
-             {% set entity_id = trigger.entity_id %}
+             {% set entity_id = open_sensor %}
              {{ state_attr(entity_id, 'friendly_name') }} {{ state_translated(entity_id) }} 
             message: >
-             {% set entity_id = trigger.entity_id %}
+             {% set entity_id = open_sensor %}
              {{ state_attr(entity_id, 'friendly_name') }} {{ state_translated(entity_id) }} for {{ time_since(states[entity_id].last_changed) }}
         - wait_for_trigger:
             - platform: state
@@ -92,11 +95,11 @@ action:
   - service: notify.pushover
     data:
       title: >
-        {% set entity_id = trigger.entity_id %}
+        {% set entity_id = open_sensor %}
         {{ state_attr(entity_id, 'friendly_name') }} {{ state_translated(entity_id) }} 
 
       message: >
-       {% set entity_id = trigger.entity_id %}
+       {% set entity_id = open_sensor %}
        {{ state_attr(entity_id, 'friendly_name') }} {{ state_translated(entity_id) }} for {{ time_since(states[entity_id].last_changed) }}
 
 mode: restart
