@@ -77,13 +77,12 @@ action:
         - service: notify.pushover
           data:
             title: >
-              {% set entity_id = !input open_sensor %}
-              {{ state_attr(entity_id, 'friendly_name') }} {{ state_translated(entity_id) }}
+              {{ state_attr(!input open_sensor, 'friendly_name') }}
+              {{ state_translated(!input open_sensor) }}
             message: >
-              {% set entity_id = !input open_sensor %}
-              {{ state_attr(entity_id, 'friendly_name') }} has been
-              {{ state_translated(entity_id) }}
-              for {{ time_since(states[entity_id].last_changed) }}
+              {{ state_attr(!input open_sensor, 'friendly_name') }}
+              has been {{ state_translated(!input open_sensor) }}
+              for {{ time_since(states[!input open_sensor].last_changed) }}
         - wait_for_trigger:
             - platform: state
               entity_id: !input open_sensor
@@ -94,12 +93,11 @@ action:
   - service: notify.pushover
     data:
       title: >
-        {% set entity_id = !input open_sensor %}
-        {{ state_attr(entity_id, 'friendly_name') }} {{ state_translated(entity_id) }}
+        {{ state_attr(!input open_sensor, 'friendly_name') }}
+        {{ state_translated(!input open_sensor) }}
       message: >
-        {% set entity_id = !input open_sensor %}
-        {{ state_attr(entity_id, 'friendly_name') }} was
-        {{ state_translated(entity_id) }}
-        for {{ time_since(states[entity_id].last_changed) }}
+        {{ state_attr(!input open_sensor, 'friendly_name') }}
+        was {{ state_translated(!input open_sensor) }}
+        for {{ time_since(states[!input open_sensor].last_changed) }}
 
 mode: restart
