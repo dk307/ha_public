@@ -63,7 +63,7 @@ condition:
   - condition: state
     entity_id: !input open_sensor
     state: "on"
-    for: !input delay 
+    for: !input delay
 
   - condition: !input additional_conditions
 
@@ -77,11 +77,13 @@ action:
         - service: notify.pushover
           data:
             title: >
-             {% set entity_id = trigger.entity_id %}
-             {{ state_attr(entity_id, 'friendly_name') }} {{ state_translated(entity_id) }} 
+              {% set entity_id = !input open_sensor %}
+              {{ state_attr(entity_id, 'friendly_name') }} {{ state_translated(entity_id) }}
             message: >
-             {% set entity_id = trigger.entity_id %}
-             {{ state_attr(entity_id, 'friendly_name') }} {{ state_translated(entity_id) }} for {{ time_since(states[entity_id].last_changed) }}
+              {% set entity_id = !input open_sensor %}
+              {{ state_attr(entity_id, 'friendly_name') }} has been
+              {{ state_translated(entity_id) }}
+              for {{ time_since(states[entity_id].last_changed) }}
         - wait_for_trigger:
             - platform: state
               entity_id: !input open_sensor
@@ -92,11 +94,12 @@ action:
   - service: notify.pushover
     data:
       title: >
-        {% set entity_id = trigger.entity_id %}
-        {{ state_attr(entity_id, 'friendly_name') }} {{ state_translated(entity_id) }} 
-
+        {% set entity_id = !input open_sensor %}
+        {{ state_attr(entity_id, 'friendly_name') }} {{ state_translated(entity_id) }}
       message: >
-       {% set entity_id = trigger.entity_id %}
-       {{ state_attr(entity_id, 'friendly_name') }} {{ state_translated(entity_id) }} for {{ time_since(states[entity_id].last_changed) }}
+        {% set entity_id = !input open_sensor %}
+        {{ state_attr(entity_id, 'friendly_name') }} was
+        {{ state_translated(entity_id) }}
+        for {{ time_since(states[entity_id].last_changed) }}
 
 mode: restart
