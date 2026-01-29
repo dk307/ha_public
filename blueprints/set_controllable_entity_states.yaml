@@ -1,12 +1,11 @@
 blueprint:
   name: Set Controllable Entity States
   description: >
-    Turns multiple entities on or off based on a boolean inputs
+    Turns multiple entities on or off and logs the operation.
   domain: script
   input:
     target_entities:
       name: Target Entities
-      description: Select entities that support on/off states.
       selector:
         entity:
           multiple: true
@@ -16,29 +15,34 @@ blueprint:
             - input_boolean
             - fan
             - automation
+
 fields:
   desired_state:
     name: Desired State
-    description: Set to “on” when true, “off” when false.
     default: true
     selector:
       boolean: {}
 
 variables:
-  action_service: >
-    {% if desired_state %}
-      homeassistant.turn_on
-    {% else %}
-      homeassistant.turn_off
-    {% endif %}
+  desired: "{{ 'on' if desired_state else 'off' }}"
+  action_service: "{{ 'homeassistant.turn_on' if desired_state else 'homeassistant.turn_off' }}"
 
 sequence:
-  - repeat:
-      for_each: !input target_entities
-      sequence:
-        - service: "{{ action_service }}"
-          target:
-            entity_id: "{{ repeat.item }}"
+  - service: system_log.write
+    data:
+      level: info
+      message: >
+        "Requested state={{ desired }} for entities: {{ target_entities | join(', ') }}"
+
+  - service: "{{ action_service }}"
+    target:
+      entity_id: !input target_entities
+
+  - service: system_log.write
+    data:
+      level: info
+      message: >
+        "Service {{ action_service }} executed for {{ target_entities | length }} entities"
 
 mode: queued
 max: 10
