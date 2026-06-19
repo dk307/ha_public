@@ -1,69 +1,71 @@
 blueprint:
   name: Motion & Trigger Based Occupancy (Cooldown After Sensors Off)
-  description: >
-    Turns on occupancy when primary motion or valid triggers fire.
-    Low-confidence (secondary) motion sensors only extend occupancy while active.
-    Occupancy turns off only after all primary sensors are off AND cooldown time has passed.
-  domain: automation
+  description: 'Turns on occupancy when primary motion or valid triggers fire. Low-confidence
+    (secondary) motion sensors only extend occupancy while active. Occupancy turns
+    off only after all primary sensors are off AND cooldown time has passed.
 
+    '
+  domain: automation
   input:
     target_boolean:
       name: Occupancy Helper
       selector:
         entity:
-          domain: input_boolean
-
+          domain:
+          - input_boolean
+          reorder: false
+          multiple: false
     primary_motion_sensors:
       name: Primary Motion Sensors
       selector:
         entity:
-          domain: binary_sensor
+          domain:
+          - binary_sensor
+          - input_boolean
           multiple: true
-
+          reorder: false
     secondary_motion_sensors:
       name: Secondary Motion Sensors (Optional)
       default: []
       selector:
         entity:
-          domain: binary_sensor
+          domain:
+          - binary_sensor
+          - input_boolean
           multiple: true
-
+          reorder: false
     trigger_sensors:
       name: Generic Trigger Sensors (Optional)
       default: []
       selector:
         entity:
           multiple: true
-
+          reorder: false
     cooldown:
       name: Cooldown Time (seconds)
       default: 300
       selector:
         number:
-          min: 10
-          max: 3600
+          min: 10.0
+          max: 3600.0
           unit_of_measurement: seconds
           mode: slider
-
+          step: 1.0
     enable_logging:
       name: Enable Logging
       default: false
       selector:
-        boolean:
-
+        boolean: {}
+  source_url: https://github.com/dk307/ha_public/blob/main/blueprints/occupany_helper.yaml
 trigger:
-  - platform: state
-    entity_id: !input primary_motion_sensors
-
-  - platform: state
-    entity_id: !input secondary_motion_sensors
-
-  - platform: state
-    entity_id: !input trigger_sensors
-
-  - platform: homeassistant
-    event: start
-
+- platform: state
+  entity_id: !input primary_motion_sensors
+- platform: state
+  entity_id: !input secondary_motion_sensors
+- platform: state
+  entity_id: !input trigger_sensors
+- platform: homeassistant
+  event: start
 variables:
   primary_sensors: !input primary_motion_sensors
   secondary_sensors: !input secondary_motion_sensors
@@ -71,98 +73,68 @@ variables:
   occupancy_flag: !input target_boolean
   cooldown_time: !input cooldown
   log_enabled: !input enable_logging
-
 condition:
-  - condition: or
-    conditions:
-      # Primary motion off → on
-      - condition: template
-        value_template: >-
-          {{ trigger.entity_id in primary_sensors
-             and trigger.from_state is not none
-             and trigger.to_state is not none
-             and trigger.from_state.state == 'off'
-             and trigger.to_state.state == 'on' }}
+- condition: or
+  conditions:
+  - condition: template
+    value_template: "{{ trigger.entity_id in primary_sensors\n   and trigger.from_state
+      is not none\n   and trigger.to_state is not none\n   and trigger.from_state.state
+      == 'off'\n   and trigger.to_state.state == 'on' }}"
+  - condition: template
+    value_template: "{{ trigger.entity_id in secondary_sensors\n   and is_state(occupancy_flag,
+      'on')\n   and trigger.from_state is not none\n   and trigger.to_state is not
+      none\n   and trigger.from_state.state == 'off'\n   and trigger.to_state.state
+      == 'on' }}"
+  - condition: template
+    value_template: "{% set invalid = ['unknown','unavailable','none'] %} {{ trigger.entity_id
+      in generic_triggers\n   and trigger.from_state is not none\n   and trigger.to_state
+      is not none\n   and trigger.from_state.state not in invalid\n   and trigger.to_state.state
+      not in invalid\n   and trigger.from_state.state != trigger.to_state.state }}"
+  - condition: template
+    value_template: '{{ trigger.platform == ''homeassistant'' and is_state(occupancy_flag,
+      ''on'') }}
 
-      # Secondary motion off → on, only if already occupied
-      - condition: template
-        value_template: >-
-          {{ trigger.entity_id in secondary_sensors
-             and is_state(occupancy_flag, 'on')
-             and trigger.from_state is not none
-             and trigger.to_state is not none
-             and trigger.from_state.state == 'off'
-             and trigger.to_state.state == 'on' }}
-
-      # Generic triggers: any valid state change
-      - condition: template
-        value_template: >-
-          {% set invalid = ['unknown','unavailable','none'] %}
-          {{ trigger.entity_id in generic_triggers
-             and trigger.from_state is not none
-             and trigger.to_state is not none
-             and trigger.from_state.state not in invalid
-             and trigger.to_state.state not in invalid
-             and trigger.from_state.state != trigger.to_state.state }}
-
-      # HA restart: occupancy is already on
-      - condition: template
-        value_template: >
-          {{ trigger.platform == 'homeassistant' and is_state(occupancy_flag, 'on') }}
-
-
+      '
 action:
-  - choose:
-      - conditions:
-          - condition: template
-            value_template: "{{ log_enabled }}"
-        sequence:
-          - service: system_log.write
-            data:
-              level: info
-              message: >-
-                "[Occupancy] Triggered by {{ trigger.entity_id }} —
-                {{ trigger.from_state.state if trigger.from_state else 'none' }}
-                → {{ trigger.to_state.state if trigger.to_state else 'none' }}"
-
-  - service: input_boolean.turn_on
-    target:
-      entity_id: "{{ occupancy_flag }}"
-
-  - wait_template: >-
-      {{ primary_sensors
-         | select('is_state','off')
-         | list | count
-       == primary_sensors | count }}
-    continue_on_timeout: false
-
-  - choose:
-      - conditions:
-          - condition: template
-            value_template: "{{ log_enabled }}"
-        sequence:
-          - service: system_log.write
-            data:
-              level: info
-              message: >-
-                "[Occupancy] All primary sensors are off.
-                 Starting cooldown: {{ cooldown_time }}s"
-
-  - delay:
-      seconds: "{{ cooldown_time }}"
-
-  - choose:
-      - conditions:
-          - condition: template
-            value_template: "{{ log_enabled }}"
-        sequence:
-          - service: system_log.write
-            data:
-              level: info
-              message: "[Occupancy] Cooldown passed. Turning off occupancy."
-
-  - service: input_boolean.turn_off
-    target:
-      entity_id: "{{ occupancy_flag }}"
-
+- choose:
+  - conditions:
+    - condition: template
+      value_template: '{{ log_enabled }}'
+    sequence:
+    - service: system_log.write
+      data:
+        level: info
+        message: '"[Occupancy] Triggered by {{ trigger.entity_id }} — {{ trigger.from_state.state
+          if trigger.from_state else ''none'' }} → {{ trigger.to_state.state if trigger.to_state
+          else ''none'' }}"'
+- service: input_boolean.turn_on
+  target:
+    entity_id: '{{ occupancy_flag }}'
+- wait_template: "{{ primary_sensors\n   | select('is_state','off')\n   | list | count\n
+    == primary_sensors | count }}"
+  continue_on_timeout: false
+- choose:
+  - conditions:
+    - condition: template
+      value_template: '{{ log_enabled }}'
+    sequence:
+    - service: system_log.write
+      data:
+        level: info
+        message: "\"[Occupancy] All primary sensors are off.\n Starting cooldown:
+          {{ cooldown_time }}s\""
+- delay:
+    seconds: '{{ cooldown_time }}'
+- choose:
+  - conditions:
+    - condition: template
+      value_template: '{{ log_enabled }}'
+    sequence:
+    - service: system_log.write
+      data:
+        level: info
+        message: '[Occupancy] Cooldown passed. Turning off occupancy.'
+- service: input_boolean.turn_off
+  target:
+    entity_id: '{{ occupancy_flag }}'
 mode: restart
