@@ -1,7 +1,8 @@
 blueprint:
   name: Set Controllable Entity States
-  description: >
-    Turns multiple entities on or off and logs the operation.
+  description: 'Turns multiple entities on or off and logs the operation.
+
+    '
   domain: script
   input:
     target_entities:
@@ -10,39 +11,34 @@ blueprint:
         entity:
           multiple: true
           domain:
-            - switch
-            - light
-            - input_boolean
-            - fan
-            - automation
-
+          - switch
+          - light
+          - input_boolean
+          - fan
+          - automation
+          reorder: false
 fields:
   desired_state:
     name: Desired State
     default: true
     selector:
       boolean: {}
-
 variables:
-  desired: "{{ 'on' if desired_state else 'off' }}"
-  action_service: "{{ 'homeassistant.turn_on' if desired_state else 'homeassistant.turn_off' }}"
-
+  entities: !input target_entities
+  desired: '{{ ''on'' if desired_state else ''off'' }}'
+  action_service: '{{ ''homeassistant.turn_on'' if desired_state else ''homeassistant.turn_off''
+    }}'
 sequence:
-  - service: system_log.write
-    data:
-      level: info
-      message: >
-        "Requested state={{ desired }} for entities: {{ target_entities | join(', ') }}"
-
-  - service: "{{ action_service }}"
-    target:
-      entity_id: !input target_entities
-
-  - service: system_log.write
-    data:
-      level: info
-      message: >
-        "Service {{ action_service }} executed for {{ target_entities | length }} entities"
-
+- service: system_log.write
+  data:
+    level: info
+    message: 'Requested state={{ desired }} for entities: {{ entities | join('', '') }}'
+- service: '{{ action_service }}'
+  target:
+    entity_id: !input target_entities
+- service: system_log.write
+  data:
+    level: info
+    message: 'Service {{ action_service }} executed for {{ entities | length }} entities'
 mode: queued
 max: 10
