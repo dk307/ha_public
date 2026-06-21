@@ -1,8 +1,11 @@
 blueprint:
   name: Motion & Trigger Based Occupancy (Cooldown After Sensors Off)
-  description: 'Turns on occupancy when primary motion or valid triggers fire. Low-confidence
-    (secondary) motion sensors only extend occupancy while active. Occupancy turns
-    off only after all primary sensors are off AND cooldown time has passed.
+  description: 'Turns on occupancy when primary motion or valid triggers fire. Secondary
+    (low-confidence) motion sensors do not turn occupancy on by themselves, but keep
+    it on while they stay active. Occupancy turns off only after all primary AND secondary
+    sensors are off (sensors that are unavailable/unknown are treated as not active)
+    AND the cooldown time has passed. A 6-hour safety timeout releases occupancy even
+    if a sensor gets stuck on.
 
     '
   domain: automation
@@ -110,9 +113,10 @@ action:
 - service: input_boolean.turn_on
   target:
     entity_id: '{{ occupancy_flag }}'
-- wait_template: "{{ primary_sensors\n   | select('is_state','off')\n   | list | count\n
-    == primary_sensors | count }}"
-  continue_on_timeout: false
+- wait_template: "{{ (primary_sensors + secondary_sensors)\n   | select('is_state','on')\n
+    \  | list | count == 0 }}"
+  timeout: '06:00:00'
+  continue_on_timeout: true
 - choose:
   - conditions:
     - condition: template
